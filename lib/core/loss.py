@@ -21,12 +21,20 @@ class MultiLoss(nn.Module):
         bin_mu = bins.argmax(1)/normalizer
         
         # Mean regression
-        l1 = F.l1_loss(pred_mu, bin_mu) 
+        l1 = F.l1_loss(pred_mu, bin_mu)
 
-        # Gaussian inference
-        target_gaussian = D.normal.Normal(bin_mu, sigma)
-        pred_gaussian = D.normal.Normal(pred_mu, pred_sigma)
-        dkl = D.kl_divergence(pred_gaussian, target_gaussian).mean()
+        # Statistical inference
+        gauss_prob = F.softmax(bins[0][bins[0] != 0]) # Same for all, depends purely on the kernel
+        non_zero_bins = torch.vstack([torch.where(x != 0)[0] for x in bins]) # Values which are distributed following the above distribution
+        scaled_bins = non_zero_bins/72
+        expectation = (gauss_prob*scaled_bins).sum(1) # Expected value based on population distribution
+        var = (gauss_prob * (scaled_bins-expectation.unsqueeze(-1))**2).sum(1) # Variance value based on population distribution
+        std = torch.sqrt(var)
+
+        target_gaussian = D.normal.Normal(expectation, std) # Create GT distribution object
+        pred_gaussian = D.normal.Normal(pred_mu, pred_sigma) # Create predicted distribution based on estimated params
+        dkl = D.kl_divergence(pred_gaussian, target_gaussian) # Kullback-Laibler Divergence
+        batchmean_dkl = dkl.sum()/target_gaussian.batch_shape[0] # Reduced to batchmean (like in torch.nn.KLDivLoss)
 
         # Optionally we could use the cross entropy by calculating
         # "uncertainty" over an empirical distribution i.e.
@@ -39,7 +47,7 @@ class MultiLoss(nn.Module):
         # pred_samples = pred_gaussian.rsample((bins.size(1),)).T
         # ce = F.cross_entropy(pred_samples, target_samples.argmax(1))
         
-        loss = weights[0]*l1 + weights[1]*dkl
+        loss = weights[0]*l1 + weights[1]*batchmean_dkl
 
         return loss
 

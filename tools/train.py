@@ -264,8 +264,7 @@ def main():
             best_model = False
 
         lr_scheduler.step()
-        if gauss:
-            final_output_dir = final_output_dir + '_gauss'
+        
         logger.info("=> saving checkpoint to {}".format(final_output_dir))
         logger.info("best_model{}".format(best_perf))
         save_checkpoint(
