@@ -5,6 +5,7 @@ from __future__ import print_function
 import logging
 import os
 import json
+from re import sub
 import cv2
 import torch
 import random
@@ -23,25 +24,27 @@ from utils.transforms import hoe_heatmap_gen
 logger = logging.getLogger(__name__)
 
 class COCO_HOE_Dataset(data.Dataset):
-    def __init__(self, cfg, root, is_train, transform=None):
+    def __init__(self, cfg, coco_root, annot_root, is_train, transform=None):
         self.image_width = cfg.MODEL.IMAGE_SIZE[0]
         self.image_height = cfg.MODEL.IMAGE_SIZE[1]
         self.aspect_ratio = self.image_width * 1.0 / self.image_height
         self.pixel_std = 200
-        self.root = root
+        self.coco_root = coco_root
+        self.annot_root = annot_root
         self.is_train = is_train
+
         if is_train:
-            json_path = os.path.join(root, 'annotations', 'train_hoe.json')
+            json_path = os.path.join(annot_root, 'annotations', 'train_hoe.json')
             dataType = 'train2017'
         else:
-            json_path = os.path.join(root, 'annotations', 'val_hoe.json')
+            json_path = os.path.join(annot_root, 'annotations', 'val_hoe.json')
             dataType = 'val2017'
         json_file = open(json_path, 'r')
         self.img_list = list(json.load(json_file).items())
         logger.info('=> load {} samples'.format(len(self.img_list)))
         print('=> load {} samples'.format(len(self.img_list)))
 
-        annFile = os.path.join(root, 'annotations', 'person_keypoints_{}.json'.format(dataType))
+        annFile = os.path.join(annot_root, 'annotations', 'person_keypoints_{}.json'.format(dataType))
         self.coco_kps = COCO(annFile)
 
         # set parameters for key points
@@ -78,7 +81,7 @@ class COCO_HOE_Dataset(data.Dataset):
 
     def _box2cs(self, box):
         x, y, w, h = box[:4]
-        return self._xywh2cs(x, y, w, h)
+        return self._xywh2cs(x, y, w, h), (x, y, w, h)
 
     def _xywh2cs(self, x, y, w, h):
         center = np.zeros((2), dtype=np.float32)
@@ -153,9 +156,10 @@ class COCO_HOE_Dataset(data.Dataset):
 
         img_name = img_ann['file_name']
         if self.is_train:
-            img_path = os.path.join(self.root, 'images', 'train2017', img_name)
+            # img_path = os.path.join(self.root, 'images', 'train2017', img_name)
+            img_path = os.path.join(self.coco_root, 'train2017', img_name)
         else:
-            img_path = os.path.join(self.root, 'images', 'val2017', img_name)
+            img_path = os.path.join(self.coco_root, 'val2017', img_name)
 
         # label of orienation degree
         degree = int(degree) // 5
@@ -181,11 +185,11 @@ class COCO_HOE_Dataset(data.Dataset):
             joints_3d_vis[ipt, 0] = t_vis
             joints_3d_vis[ipt, 1] = t_vis
             joints_3d_vis[ipt, 2] = 0
-        center, scale = self._box2cs(bbox)
-        return img_path, center, scale, degree, joints_3d, joints_3d_vis
+        (center, scale), bbox = self._box2cs(bbox)
+        return img_path, center, scale, degree, joints_3d, joints_3d_vis, bbox
 
     def __getitem__(self, index):
-        imgfile, c, s, degree, joints, joints_vis = self._load_image(index)
+        imgfile, c, s, degree, joints, joints_vis, bbox = self._load_image(index)
         data_numpy = cv2.imread(imgfile, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
         data_numpy = cv2.cvtColor(data_numpy, cv2.COLOR_BGR2RGB)
 
@@ -245,7 +249,7 @@ class COCO_HOE_Dataset(data.Dataset):
             'scale': s,
         }
 
-        return input, target, target_weight, degree, meta
+        return input, target, target_weight, degree, meta, bbox
 
     def generate_target(self, joints, joints_vis):
         '''

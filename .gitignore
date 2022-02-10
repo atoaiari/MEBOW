@@ -95,3 +95,5 @@ external/
 
 draws/
 plot/
+experiments/coco/
+tools/stat_plots/

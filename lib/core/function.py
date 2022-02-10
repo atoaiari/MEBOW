@@ -9,12 +9,17 @@ import os
 import numpy as np
 import torch
 import pickle
-
+from utils import transforms
+from lib.core.loss import MultiLoss
 
 from core.evaluate import accuracy
-from core.evaluate import comp_deg_error, continous_comp_deg_error, draw_orientation, ori_numpy
+from core.evaluate import comp_deg_error, continous_comp_deg_error, draw_orientation, ori_numpy, comp_gauss_deg_error
 
 logger = logging.getLogger(__name__)
+
+def cross_entropy(p, q, x):
+    # ce = - SUM(P(X)log(Q(X)))
+    return
 
 def save_obj(obj, name ):
     with open(name + '.pkl', 'wb') as f:
@@ -46,7 +51,7 @@ def print_msg(step, loader_len, batch_time, has_hkd, loss_hkd, loss_hoe, losses,
   logger.info(msg)
 
 def train(config, train_loader, train_dataset, model, criterions, optimizer, epoch,
-          output_dir, tb_log_dir, writer_dict):
+          output_dir, tb_log_dir, writer_dict, gauss=False):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     loss_2d_log = AverageMeter()
@@ -59,7 +64,7 @@ def train(config, train_loader, train_dataset, model, criterions, optimizer, epo
     model.train()
     end = time.time()
 
-    for i, (input, target, target_weight, degree, meta) in enumerate(train_loader):
+    for i, (input, target, target_weight, degree, meta, _) in enumerate(train_loader):
         data_time.update(time.time() - end)
 
         # compute output
@@ -72,7 +77,10 @@ def train(config, train_loader, train_dataset, model, criterions, optimizer, epo
 
         # compute loss
         if config.LOSS.USE_ONLY_HOE:
-            loss_hoe = criterions['hoe_loss'](hoe_output, degree)
+            if gauss:
+                loss_hoe = MultiLoss()(hoe_output[:, 0], hoe_output[:, 1], degree)
+            else:
+                loss_hoe = criterions['hoe_loss'](hoe_output, degree)
             loss_2d = loss_hoe
             loss = loss_hoe
         else:
@@ -99,7 +107,9 @@ def train(config, train_loader, train_dataset, model, criterions, optimizer, epo
             has_hkd=False
             acc_label = 'mid15'
         elif config.LOSS.USE_ONLY_HOE:
-            avg_degree_error, _, mid, _ , _, _, _, _, cnt= comp_deg_error(hoe_output.detach().cpu().numpy(),
+            # avg_degree_error, _, mid, _ , _, _, _, _, cnt= comp_deg_error(hoe_output.detach().cpu().numpy(),
+            #                                        degree.detach().cpu().numpy())
+            avg_degree_error, _, mid, _ , _, _, _, _, cnt= comp_gauss_deg_error(hoe_output.detach().cpu().numpy(),
                                                    degree.detach().cpu().numpy())
             acc.update(mid/cnt, cnt)
             has_hkd=False 
@@ -135,7 +145,7 @@ def train(config, train_loader, train_dataset, model, criterions, optimizer, epo
 
 # this is validate part
 def validate(config, val_loader, val_dataset, model, criterions,  output_dir,
-             tb_log_dir, writer_dict=None, draw_pic=False, save_pickle=False):
+             tb_log_dir, writer_dict=None, draw_pic=False, save_pickle=False, gauss=False):
     batch_time = AverageMeter()
     loss_hkd_log = AverageMeter()
     loss_hoe_log = AverageMeter()
@@ -157,7 +167,7 @@ def validate(config, val_loader, val_dataset, model, criterions,  output_dir,
     ori_list = []
     with torch.no_grad():
         end = time.time()
-        for i, (input, target, target_weight, degree,  meta) in enumerate(val_loader):
+        for i, (input, target, target_weight, degree,  meta, _) in enumerate(val_loader):
             # compute output
             plane_output, hoe_output = model(input)
 
@@ -168,7 +178,10 @@ def validate(config, val_loader, val_dataset, model, criterions,  output_dir,
 
             # compute loss
             if config.LOSS.USE_ONLY_HOE:
-                loss_hoe = criterions['hoe_loss'](hoe_output, degree)
+                if gauss:
+                    loss_hoe = MultiLoss()(hoe_output[:, 0], hoe_output[:, 1], degree)
+                else:
+                    loss_hoe = criterions['hoe_loss'](hoe_output, degree)
                 loss_2d = loss_hoe
                 loss = loss_hoe
             else:
@@ -190,8 +203,10 @@ def validate(config, val_loader, val_dataset, model, criterions,  output_dir,
                 acc_label = 'mid15'
                 has_hkd = False
             elif config.LOSS.USE_ONLY_HOE:
-                avg_degree_error, excellent, mid, poor_225, poor, poor_45, gt_ori, pred_ori, cnt  = comp_deg_error(hoe_output.detach().cpu().numpy(),
-                                                                                   degree.detach().cpu().numpy())
+                # avg_degree_error, excellent, mid, poor_225, poor, poor_45, gt_ori, pred_ori, cnt  = comp_deg_error(hoe_output.detach().cpu().numpy(),
+                #                                                                    degree.detach().cpu().numpy())
+                avg_degree_error, excellent, mid, poor_225, poor, poor_45, gt_ori, pred_ori, cnt = comp_gauss_deg_error(hoe_output.detach().cpu().numpy(),
+                                                   degree.detach().cpu().numpy())
                 acc.update(mid/cnt, cnt)
                 acc_label = 'mid15'
                 has_hkd = False

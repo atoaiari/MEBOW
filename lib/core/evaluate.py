@@ -117,6 +117,34 @@ def comp_deg_error(output, degree):
                             excellent += 1
     return result/len(output), excellent, mid, poor_225, poor, poor_45,degree*5 ,index_degree * 5, len(output)
 
+def comp_gauss_deg_error(output, degree):
+    result = 0
+    degree = degree.argmax(axis = 1)
+
+    # Get point prediction from mean values
+    pred_mu = output[:, 0]
+    index_degree = (pred_mu*72).round().astype(int) #rescale
+    excellent = 0
+    mid = 0
+    poor_225 = 0
+    poor = 0
+    poor_45 = 0
+    for i in range(len(index_degree)):
+        diff = abs(index_degree[i] - degree[i]) * 5
+        diff = min(diff, 360 - diff)
+        result += diff
+        if diff <= 45:
+            poor_45 += 1
+            if diff <= 30:
+                poor += 1
+                if diff <= 22.5:
+                    poor_225 += 1
+                    if diff <= 15:
+                        mid += 1
+                        if diff <= 5:
+                            excellent += 1
+    return result/len(output), excellent, mid, poor_225, poor, poor_45,degree*5 ,index_degree * 5, len(output)
+
 
 
 # this is for human3.6

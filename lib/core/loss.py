@@ -8,6 +8,41 @@ from torch.autograd import Function
 from utils.debug import print_variable
 import numpy as np
 
+import torch.nn.functional as F
+import torch.distributions as D
+
+class MultiLoss(nn.Module):
+    def __init__(self):
+        super(MultiLoss, self).__init__()
+
+    def forward(self, pred_mu, pred_sigma, bins, gt_sigma=4.0, weights=[1, 1], normalizer=72):
+        # Scale values by maximum val (maskes regression more stable)
+        sigma = gt_sigma/normalizer
+        bin_mu = bins.argmax(1)/normalizer
+        
+        # Mean regression
+        l1 = F.l1_loss(pred_mu, bin_mu) 
+
+        # Gaussian inference
+        target_gaussian = D.normal.Normal(bin_mu, sigma)
+        pred_gaussian = D.normal.Normal(pred_mu, pred_sigma)
+        dkl = D.kl_divergence(pred_gaussian, target_gaussian).mean()
+
+        # Optionally we could use the cross entropy by calculating
+        # "uncertainty" over an empirical distribution i.e.
+        # the average number of bits needed to encode events from the
+        # true distribution (target) using a scheme optimized for 
+        # the produced (pred) distribution.
+        # In this case this would be forcing matters a bit
+
+        # target_samples = target_gaussian.rsample((bins.size(1),)).T
+        # pred_samples = pred_gaussian.rsample((bins.size(1),)).T
+        # ce = F.cross_entropy(pred_samples, target_samples.argmax(1))
+        
+        loss = weights[0]*l1 + weights[1]*dkl
+
+        return loss
+
 
 class JointsMSELoss(nn.Module):
     def __init__(self, use_target_weight):
@@ -252,4 +287,3 @@ class VarLoss(Function):
                                                   self.skeleton_weight[g][j] ** 2 / num * (l[j] - E) \
                                                   / l[j] * (input[t, id2] - input[t, id1]) / batch_size
         return grad_input, None, None, None
-

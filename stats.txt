@@ -1,0 +1,65 @@
+***************************************************************************************************
+Dataset statistics
+
+Train-test ratio: 0.958 - 0.042
+
+Calculating train statistics
+Descriptive statistcs for box_x0 over train
+Mean 230.59, Median 215.19, Std 160.55, Range (0.0, 624.62)
+Descriptive statistcs for box_y0 over train
+Mean 139.1, Median 126.04, Std 99.48, Range (0.0, 601.5)
+Descriptive statistcs for box_w over train
+Mean 125.53, Median 89.08, Std 103.31, Range (12.48, 640.0)
+Descriptive statistcs for box_h over train
+Mean 209.16, Median 173.48, Std 130.27, Range (17.39, 640.0)
+Descriptive statistcs for box_size over train
+Mean 157.87, Median 123.6, Std 107.2, Range (32.46, 636.39)
+Descriptive statistcs for bins over train
+Mean 35.73, Median 36.0, Std 16.12, Range (0, 71)
+
+Calculating test statistics
+Descriptive statistcs for box_x0 over test
+Mean 230.44, Median 216.16, Std 160.31, Range (0.0, 623.04)
+Descriptive statistcs for box_y0 over test
+Mean 137.93, Median 124.32, Std 100.32, Range (0.0, 588.16)
+Descriptive statistcs for box_w over test
+Mean 122.12, Median 85.65, Std 99.49, Range (12.81, 640.0)
+Descriptive statistcs for box_h over test
+Mean 204.54, Median 163.43, Std 130.27, Range (25.6, 640.0)
+Descriptive statistcs for box_size over test
+Mean 154.02, Median 117.21, Std 105.01, Range (37.72, 611.2)
+Descriptive statistcs for bins over test
+Mean 36.06, Median 36.0, Std 16.38, Range (0, 71)
+
+****************************************************************************************************
+Dataset statistics
+
+Train-test ratio: 0.89 - 0.11
+
+Calculating train statistics
+Descriptive statistcs for box_x0 over train
+Mean 229.76, Median 213.11, Std 160.25, Range (0.0, 622.32)
+Descriptive statistcs for box_y0 over train
+Mean 138.4, Median 125.58, Std 99.55, Range (0.0, 601.5)
+Descriptive statistcs for box_w over train
+Mean 125.77, Median 88.94, Std 103.54, Range (15.37, 640.0)
+Descriptive statistcs for box_h over train
+Mean 209.72, Median 173.33, Std 130.26, Range (17.39, 640.0)
+Descriptive statistcs for box_size over train
+Mean 158.24, Median 124.09, Std 107.43, Range (36.32, 625.58)
+Descriptive statistcs for bins over train
+Mean 35.81, Median 36.0, Std 16.02, Range (0, 71)
+
+Calculating test statistics
+Descriptive statistcs for box_x0 over test
+Mean 230.44, Median 216.16, Std 160.31, Range (0.0, 623.04)
+Descriptive statistcs for box_y0 over test
+Mean 137.93, Median 124.32, Std 100.32, Range (0.0, 588.16)
+Descriptive statistcs for box_w over test
+Mean 122.12, Median 85.65, Std 99.49, Range (12.81, 640.0)
+Descriptive statistcs for box_h over test
+Mean 204.54, Median 163.43, Std 130.27, Range (25.6, 640.0)
+Descriptive statistcs for box_size over test
+Mean 154.02, Median 117.21, Std 105.01, Range (37.72, 611.2)
+Descriptive statistcs for bins over test
+Mean 36.06, Median 36.0, Std 16.38, Range (0, 71)

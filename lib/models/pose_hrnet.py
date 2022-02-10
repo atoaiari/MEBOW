@@ -331,11 +331,19 @@ class PoseHighResolutionNet(nn.Module):
             self.inplanes = self.num_joints
         # self.inplanes = 17
         # self.hoe_layer1 = self._make_layer(BasicBlock, 64, 2)
+        self.gauss = kwargs.get('gauss')
         self.hoe_layer2 = self._make_layer(BasicBlock, 128, 2, stride=2)
         self.hoe_layer3 = self._make_layer(BasicBlock, 256, 2, stride=2)
         self.hoe_layer4 = self._make_layer(BasicBlock, 512, 2, stride=2)
         self.hoe_avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.hoe_fc = nn.Linear(512, 72)
+        if self.gauss:
+            self.hoe_fc = nn.Sequential(
+                nn.Linear(512, 2),
+                nn.ReLU()
+            )
+        else:
+            self.hoe_fc = nn.Linear(512, 72)
+
 
     def _make_transition_layer(
             self, num_channels_pre_layer, num_channels_cur_layer):
