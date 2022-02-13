@@ -10,44 +10,46 @@ import numpy as np
 
 import torch.nn.functional as F
 import torch.distributions as D
+import matplotlib.pyplot as plt
 
 class MultiLoss(nn.Module):
     def __init__(self):
         super(MultiLoss, self).__init__()
 
-    def forward(self, pred_mu, pred_sigma, bins, gt_sigma=4.0, weights=[1, 1], normalizer=72):
+    def forward(self, pred_mu, pred_sigma, bins, gt_sigma=4.0, weights=[1, 1, 1], normalizer=72):
         # Scale values by maximum val (maskes regression more stable)
-        sigma = gt_sigma/normalizer
-        bin_mu = bins.argmax(1)/normalizer
+        # sigma = gt_sigma/normalizer
+        # bin_mu = bins.argmax(1)/normalizer
         
-        # Mean regression
-        l1 = F.l1_loss(pred_mu, bin_mu)
-
-        # Statistical inference
-        gauss_prob = F.softmax(bins[0][bins[0] != 0]) # Same for all, depends purely on the kernel
+        # Calculate ground truth normal distribution's parameters
+        gauss_prob = bins[0][bins[0] != 0] # Same for all, depends purely on the kernel
         non_zero_bins = torch.vstack([torch.where(x != 0)[0] for x in bins]) # Values which are distributed following the above distribution
         scaled_bins = non_zero_bins/72
         expectation = (gauss_prob*scaled_bins).sum(1) # Expected value based on population distribution
         var = (gauss_prob * (scaled_bins-expectation.unsqueeze(-1))**2).sum(1) # Variance value based on population distribution
         std = torch.sqrt(var)
 
+        # Point estimation
+        mu_l1 = F.l1_loss(pred_mu, expectation)
+        sigma_l1 = F.l1_loss(pred_sigma, std)
+
+        # Distribution estimation
+        epsilon = 1e-3
         target_gaussian = D.normal.Normal(expectation, std) # Create GT distribution object
-        pred_gaussian = D.normal.Normal(pred_mu, pred_sigma) # Create predicted distribution based on estimated params
-        dkl = D.kl_divergence(pred_gaussian, target_gaussian) # Kullback-Laibler Divergence
-        batchmean_dkl = dkl.sum()/target_gaussian.batch_shape[0] # Reduced to batchmean (like in torch.nn.KLDivLoss)
+        pred_gaussian = D.normal.Normal(pred_mu, pred_sigma+epsilon) # Create predicted distribution based on estimated params
+        dkl = D.kl_divergence(pred_gaussian, target_gaussian).mean() # Mean reduced Kullback-Laibler Divergence
 
         # Optionally we could use the cross entropy by calculating
-        # "uncertainty" over an empirical distribution i.e.
+        # "uncertainty" over an empirical sampled distribution i.e.
         # the average number of bits needed to encode events from the
         # true distribution (target) using a scheme optimized for 
         # the produced (pred) distribution.
-        # In this case this would be forcing matters a bit
-
-        # target_samples = target_gaussian.rsample((bins.size(1),)).T
-        # pred_samples = pred_gaussian.rsample((bins.size(1),)).T
+        # sample_shape = (bins.size(1),)
+        # target_samples = target_gaussian.rsample(sample_shape).T
+        # pred_samples = pred_gaussian.rsample(sample_shape).T
         # ce = F.cross_entropy(pred_samples, target_samples.argmax(1))
         
-        loss = weights[0]*l1 + weights[1]*batchmean_dkl
+        loss = weights[0]*mu_l1 + weights[1]*sigma_l1 # + weights[2]*dkl
 
         return loss
 

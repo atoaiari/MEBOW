@@ -13,7 +13,6 @@ import argparse
 import os
 from pathlib import Path
 import pprint
-from random import gauss
 import shutil
 
 import torch
@@ -82,7 +81,13 @@ def parse_args():
         default="data/coco/subset_idx.pt",
     )
     parser.add_argument(
-        "--gauss", help="Use gaussian prediction and loss: 1 || 0", type=int, default=1
+        "--gauss", help="Use gaussian prediction and loss: 1 || 0", type=int, default=0
+    )
+    parser.add_argument(
+        "--sparsemax", help="Use sparsemax activation function: 1 || 0", type=int, default=0
+    )
+    parser.add_argument(
+        "--vit", help="Use ViT head for HOE prediction prediction and loss: 1 || 0", type=int, default=0
     )
     parser.add_argument("--seed", help="Reproducibility", type=int, default=21)
 
@@ -108,11 +113,15 @@ def main():
     cudnn.benchmark = cfg.CUDNN.BENCHMARK
     torch.backends.cudnn.deterministic = cfg.CUDNN.DETERMINISTIC
     torch.backends.cudnn.enabled = cfg.CUDNN.ENABLED
-    gauss = True if args.gauss == 1 else False 
+    gauss = True if args.gauss == 1 else False
+    use_sparsemax = True if args.sparsemax == 1 else False
+    use_vit = True if args.vit == 1 else False
+
+    final_output_dir = final_output_dir+f'_gauss-{gauss}_sparse-{use_sparsemax}_vit-{use_vit}'
 
     # copy model file
     model = eval("models." + cfg.MODEL.NAME + ".get_pose_net")(
-        cfg, is_train=True, gauss=gauss
+        cfg, is_train=True, gauss=gauss, use_sparsemax=use_sparsemax, use_vit=use_vit
     )
     this_dir = os.path.dirname(__file__)
     shutil.copy2(
@@ -130,18 +139,7 @@ def main():
 
     logger.info(get_model_summary(model, dump_input))
 
-    # load pretrained model
-
-    # pre_model = '/home/cchw/coding/important_model/amazon_model/gray_HM3.6_MPII_with_HOE.pth'
-    # logger.info("=> loading checkpoint '{}'".format(pre_model))
-    # checkpoint = torch.load(pre_model)
-    # if 'state_dict' in checkpoint:
-    #     model.load_state_dict(checkpoint['state_dict'], strict=True)
-    # else:
-    #     model.load_state_dict(checkpoint, strict=True)
-
     model = torch.nn.DataParallel(model, device_ids=cfg.GPUS).cuda()
-
     criterions = {}
     criterions["2d_pose_loss"] = JointsMSELoss(
         use_target_weight=cfg.LOSS.USE_TARGET_WEIGHT

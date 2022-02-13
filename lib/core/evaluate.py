@@ -123,14 +123,14 @@ def comp_gauss_deg_error(output, degree):
 
     # Get point prediction from mean values
     pred_mu = output[:, 0]
-    index_degree = (pred_mu*72).round().astype(int) #rescale
+    index_degree = (pred_mu*72).round().astype(int) #rescale and transform to integer in [1,72]
     excellent = 0
     mid = 0
     poor_225 = 0
     poor = 0
     poor_45 = 0
     for i in range(len(index_degree)):
-        diff = abs(index_degree[i] - degree[i]) * 5
+        diff = abs(index_degree[i] - degree[i]) * 5 # absolute error in degrees
         diff = min(diff, 360 - diff)
         result += diff
         if diff <= 45:

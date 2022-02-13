@@ -9,6 +9,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# Additional functionalities
+from sparsemax import Sparsemax
+from vit_pytorch.crossformer import CrossFormer
+
 BN_MOMENTUM = 0.1
 logger = logging.getLogger(__name__)
 
@@ -329,20 +333,35 @@ class PoseHighResolutionNet(nn.Module):
             self.inplanes = 96
         else:
             self.inplanes = self.num_joints
-        # self.inplanes = 17
-        # self.hoe_layer1 = self._make_layer(BasicBlock, 64, 2)
+
         self.gauss = kwargs.get('gauss')
-        self.hoe_layer2 = self._make_layer(BasicBlock, 128, 2, stride=2)
-        self.hoe_layer3 = self._make_layer(BasicBlock, 256, 2, stride=2)
-        self.hoe_layer4 = self._make_layer(BasicBlock, 512, 2, stride=2)
-        self.hoe_avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        if self.gauss:
-            self.hoe_fc = nn.Sequential(
-                nn.Linear(512, 2),
-                nn.ReLU()
+        self.use_sparsemax = kwargs.get('use_sparsemax')
+        self.use_vit = kwargs.get('use_vit')
+
+        if self.use_vit:
+            self.hoe_net = CrossFormer(
+                num_classes=num_out,
+                dim = (64, 128, 256, 512),         # dimension at each stage
+                depth = (2, 2, 8, 2),              # depth of transformer at each stage
+                global_window_size = (8, 4, 2, 1), # global window sizes at each stage
+                local_window_size = 7,              # local window size (can be customized for each stage, but in paper, held constant at 7 for all stages)
             )
         else:
-            self.hoe_fc = nn.Linear(512, 72)
+            self.hoe_net = nn.Sequential(
+                self._make_layer(BasicBlock, 64, 2),
+                self._make_layer(BasicBlock, 128, 2, stride=2),
+                self._make_layer(BasicBlock, 256, 2, stride=2),
+                self._make_layer(BasicBlock, 512, 2, stride=2),
+            )
+    
+        self.hoe_avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        num_out = 2 if self.gauss else 72
+        self.hoe_fc = nn.Linear(512, num_out)
+
+        if self.use_sparsemax:
+            self.activation = Sparsemax(dim=1)
+        else:
+            self.activation = nn.Softmax(dim=1)
 
 
     def _make_transition_layer(
@@ -477,14 +496,17 @@ class PoseHighResolutionNet(nn.Module):
             x_cat = torch.cat([feature_map_2, feature_map_3, feature_map_4], 1)
         else:
             x_cat = x
-        # y = self.hoe_layer1(x)
-        y = self.hoe_layer2(x_cat)
-        y = self.hoe_layer3(y)
-        y = self.hoe_layer4(y)
-        y = self.hoe_avgpool(y)
-        y = y.view(y.size(0), -1)
-        y = self.hoe_fc(y)
-        y = F.softmax(y, dim=1)
+
+        y = self.hoe_net(x_cat)
+        
+        if not self.use_vit:
+            y = self.hoe_avgpool(y)
+            y = y.view(y.size(0), -1)
+            y = self.hoe_fc(y)
+        
+        if not self.gauss:
+            y = self.activation(y)
+        
         return x, y
 
     def init_weights(self, pretrained=''):

@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from math import ceil
  
 import time
 import logging
@@ -17,9 +18,26 @@ from core.evaluate import comp_deg_error, continous_comp_deg_error, draw_orienta
 
 logger = logging.getLogger(__name__)
 
-def cross_entropy(p, q, x):
-    # ce = - SUM(P(X)log(Q(X)))
-    return
+def confidence_intervals(prediction, gt):
+    # Calculate ground truth normal distribution's parameters
+    pmf = gt[0][gt[0] != 0] # Same for all, depends purely on the kernel
+
+    # Create values that distributed according to the above pmf and the mean (predicted bin)
+    # Since the values are normally distirbuted then the predicted mean is at the center of the distribution
+    left = [prediction-i for i in range(1, ceil(len(pmf)/2))]
+    right = [prediction+i for i in range(1, ceil(len(pmf)/2))]
+
+    values = torch.vstack([torch.where(x != 0)[0] for x in gt]) # Values which are distributed following the above distribution
+    expectation = (pmf*values).sum(1) # Expected value based on population distribution
+    var = (pmf * (values-prediction.unsqueeze(-1))**2).sum(1) # Variance value based on population distribution
+    std = torch.sqrt(var)
+
+    # Calculate common confidence intervals based on the empirical rule (we know that it's a Gaussian)
+    cfd_68 = (expectation-std, expectation+std)
+    cfd_95 = (expectation-(2*std), expectation+(2*std))
+    cfd_99 = (expectation-(2.5*std), expectation+(2.5*std))
+
+    return cfd_68, cfd_95, cfd_99
 
 def save_obj(obj, name ):
     with open(name + '.pkl', 'wb') as f:
@@ -81,8 +99,8 @@ def train(config, train_loader, train_dataset, model, criterions, optimizer, epo
                 loss_hoe = MultiLoss()(hoe_output[:, 0], hoe_output[:, 1], degree)
             else:
                 loss_hoe = criterions['hoe_loss'](hoe_output, degree)
-            loss_2d = loss_hoe
-            loss = loss_hoe
+                loss_2d = loss_hoe
+                loss = loss_hoe
         else:
             loss_2d = criterions['2d_pose_loss'](plane_output, target, target_weight)
             loss_hoe = criterions['hoe_loss'](hoe_output , degree)
@@ -107,10 +125,12 @@ def train(config, train_loader, train_dataset, model, criterions, optimizer, epo
             has_hkd=False
             acc_label = 'mid15'
         elif config.LOSS.USE_ONLY_HOE:
-            # avg_degree_error, _, mid, _ , _, _, _, _, cnt= comp_deg_error(hoe_output.detach().cpu().numpy(),
-            #                                        degree.detach().cpu().numpy())
-            avg_degree_error, _, mid, _ , _, _, _, _, cnt= comp_gauss_deg_error(hoe_output.detach().cpu().numpy(),
+            if gauss:
+                avg_degree_error, _, mid, _ , _, _, _, _, cnt= comp_deg_error(hoe_output.detach().cpu().numpy(),
                                                    degree.detach().cpu().numpy())
+            else:
+                avg_degree_error, _, mid, _ , _, _, _, _, cnt= comp_gauss_deg_error(hoe_output.detach().cpu().numpy(),
+                                                    degree.detach().cpu().numpy())
             acc.update(mid/cnt, cnt)
             has_hkd=False 
             acc_label = 'mid15'
@@ -179,7 +199,7 @@ def validate(config, val_loader, val_dataset, model, criterions,  output_dir,
             # compute loss
             if config.LOSS.USE_ONLY_HOE:
                 if gauss:
-                    loss_hoe = MultiLoss()(hoe_output[:, 0], hoe_output[:, 1], degree)
+                    loss_hoe = MultiLoss()(hoe_output, degree)
                 else:
                     loss_hoe = criterions['hoe_loss'](hoe_output, degree)
                 loss_2d = loss_hoe
@@ -203,10 +223,13 @@ def validate(config, val_loader, val_dataset, model, criterions,  output_dir,
                 acc_label = 'mid15'
                 has_hkd = False
             elif config.LOSS.USE_ONLY_HOE:
-                # avg_degree_error, excellent, mid, poor_225, poor, poor_45, gt_ori, pred_ori, cnt  = comp_deg_error(hoe_output.detach().cpu().numpy(),
-                #                                                                    degree.detach().cpu().numpy())
-                avg_degree_error, excellent, mid, poor_225, poor, poor_45, gt_ori, pred_ori, cnt = comp_gauss_deg_error(hoe_output.detach().cpu().numpy(),
-                                                   degree.detach().cpu().numpy())
+                if gauss:
+                    avg_degree_error, excellent, mid, poor_225, poor, poor_45, gt_ori, pred_ori, cnt = comp_gauss_deg_error(hoe_output.detach().cpu().numpy(),
+                                                                                   degree.detach().cpu().numpy())
+                else:
+                    avg_degree_error, excellent, mid, poor_225, poor, poor_45, gt_ori, pred_ori, cnt  = comp_deg_error(hoe_output.detach().cpu().numpy(),
+                                                                                   degree.detach().cpu().numpy())
+                
                 acc.update(mid/cnt, cnt)
                 acc_label = 'mid15'
                 has_hkd = False
